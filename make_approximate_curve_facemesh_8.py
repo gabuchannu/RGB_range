@@ -157,5 +157,4 @@ if __name__=="__main__":
         else: #countが30未満だったら
             count = count + 1 #countを増やす
 
-
     cap.release()
