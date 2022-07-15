@@ -3,12 +3,11 @@ import numpy as np
 from matplotlib import pyplot
 import cv2
 import face_mesh_matsumoto
-import csv
+from sklearn import linear_model
 
 #----------------------
 #フレーム毎に処理を行う関数
 #----------------------
-
 def frame_process(img, frame_count):
     
     facemesh = face_mesh_matsumoto.Facemesh(0.7, 0.5) #facemeshを呼びだす
@@ -20,7 +19,6 @@ def frame_process(img, frame_count):
 
     else: #顔検出出来ていたら
         #書き換えポイント
-        #file_name = "\\\\C:\\Users\\italab\\Desktop\\study_program\\Study_program\\check_value\\csv_result\\hino\\frame" + str(frame_count) + ".csv"
         file_name = ".//csv_result//hino//frame" + str(frame_count) + ".csv"
         f = open(file_name, "a") #追記モードでファイルを開く
         f.write("R Value" + "," + "G Value" + "," + "B Value" + "," + "R+G+B Value" + "," + "R-B Value" + "\n") #ヘッダー作成
@@ -38,20 +36,18 @@ def frame_process(img, frame_count):
                 R_value = int(img_array[i, j, :][2]) #R値の取得
                 G_value = int(img_array[i, j, :][1]) #G値の取得
                 B_value = int(img_array[i, j, :][0]) #B値の取得
-                RGB_Value = R_value + G_value + B_value
-                RB_Value = R_value - B_value
+                RGB_Value = R_value + G_value + B_value #R+G+B成分値を作る
+                RB_Value = R_value - B_value #R-B成分値を作る
 
                 f.write(str(R_value) + "," + str(G_value) + "," + str(B_value) + "," + str(RGB_Value) + "," + str(RB_Value) + "\n")
 
     f.close()
-    make_cut_data(frame_count)
-    return
+    make_cut_data(frame_count) #現在見ているフレーム数を持って値を切り取りする関数に渡す
 
 
 def make_cut_data(frame_count):
 
     #先の関数で作った1フレームの各成分値のデータ
-    #file_name = "\\\\C:\\Users\\italab\\Desktop\\study_program\\Study_program\\csv_result\\hino\\frame" + str(frame_count) + ".csv"
     file_name = ".//csv_result//hino//frame" + str(frame_count) + ".csv"
     
     data = [] #全てのデータを入れる配列を作成
@@ -68,16 +64,16 @@ def make_cut_data(frame_count):
         #i行目の3列目(R+G+B成分値)
         csv_number = df.iat[i, 3] // 8 #商の値を取ってくる
         pickup_data = [] #見ているデータを入れる配列
-        for j in range(5):
+        for j in range(5): #R,G,B,R+G+B,R-Bの5項目を見てappendする
             pickup_data.append(df.iat[i, j])
         data[csv_number].append(pickup_data) #商の数番目のCSVファイルに書き込むデータにする
 
     count = 0
 
     for i in range(96): #CSVに書き込みしていく
-        new_df =  pd.DataFrame(data[i], columns=["R Value", "G Value", "B Value", "R+G+B Value", "R-B Value"])
-        new_df_name = ".//csv_result//hino//frame" + str(frame_count) + "_" + str(count) + str(count+7) + ".csv"
-        new_df.to_csv(new_df_name)
+        new_df =  pd.DataFrame(data[i], columns=["R Value", "G Value", "B Value", "R+G+B Value", "R-B Value"]) #新しいファイルを作成する
+        new_df_name = ".//csv_result//hino//frame" + str(frame_count) + "_" + str(count) + str(count+7) + ".csv" #新しいCSVを作成する
+        new_df.to_csv(new_df_name) #CSVに切ったデータを書き込む
         count = count + 8
     
     make_graph(frame_count, total_data_number)
@@ -91,15 +87,15 @@ def make_graph(frame_count, total_data_number):
 
     count = 0
     for i in range(96):
-        look_df_name = ".//csv_result//hino//frame" + str(frame_count) + "_" + str(count) + str(count+7) + ".csv"
+        look_df_name = ".//csv_result//hino//frame" + str(frame_count) + "_" + str(count) + str(count+7) + ".csv" #開くファイルの名前を指定
         #look_df = pd.read_csv(look_df_name, encoding="shift_jis")
-        look_df = pd.read_csv(look_df_name, encoding="utf-8")
+        look_df = pd.read_csv(look_df_name, encoding="utf-8") #CSVをDFとして開く
 
         if len(look_df["R+G+B Value"]) != 0: #要素が存在するのであれば
 
             fig = pyplot.figure()
             ax = fig.add_subplot(1, 1, 1)
-            fig_name = ".//figure_result//hino//frame" + str(frame_count) + "_" + str(count) + str(count+7) + ".png"
+            fig_name = ".//figure_result//hino//frame" + str(frame_count) + "_" + str(count) + str(count+7) + ".png" #ファイルの名前
 
             pyplot.xlim(0, 765) #R+G+Bの最大値まで
             pyplot.ylim(0, 255) #R-Bの最大値まで
@@ -108,23 +104,39 @@ def make_graph(frame_count, total_data_number):
             pyplot.xlabel("R+G+B Value")
             pyplot.ylabel("R-B Value")
 
-            x_data = look_df["R+G+B Value"]
-            y_data = look_df["R-B Value"]
+            clf = linear_model.LinearRegression()
 
-            a, b = np.polyfit(x_data, y_data, 1)
+            x_data = look_df[["R+G+B Value"]] #xのデータとしてR+G+B成分値
+            y_data = look_df[["R-B Value"]] #yのデータとしてR-B成分値
 
-            approximate_formula = "y = " + str(f'{b:.3f}') + " + " + str(f'{a:.3f}') + " * x" #近似直線の式
+            #近似直線を作るための傾きと切片を出す
+            clf.fit(x_data, y_data)
+            a = clf.coef_
+            b = clf.intercept_
 
-            xinterval = 0.1
+            if len(x_data) >= 2:
+                r2 = clf.score(x_data, y_data)
+            else:
+                r2 = "NAN"
+
+            approximate_formula = "y = " + str(f'{b[0]:.3f}') + " + " + str(f'{a[0][0]:.3f}') + " * x" #近似直線の式
+
+            xinterval = 0.1 #近似直線を表示するためのxダミーデータを作る
             x = np.arange(count-30, count+37, xinterval)
-            y = a * x + b
+            y = a[0][0] * x + b[0]
 
-            density = len(look_df["R+G+B Value"]) / total_data_number * 100
+            density = len(look_df["R+G+B Value"]) / total_data_number * 100 #密度を%で表示する
+
+            if r2 == "NAN":
+                text = "r^2:" + str(r2)
+            else:
+                text = "r^2:" + str(format(r2, '.2f'))
 
             pyplot.scatter(look_df["R+G+B Value"], look_df["R-B Value"]) #散布図を描く
             pyplot.plot(x, y, color="coral") #近似直線を描く
+            pyplot.text(20, 230, text)
 
-            pyplot.legend([f'{density:.3f}' + "%", approximate_formula])
+            pyplot.legend(["density:" + f'{density:.3f}' + "%", "regressionline:" + approximate_formula])
 
             fig.savefig(fig_name)
         
