@@ -186,9 +186,10 @@ if __name__=="__main__":
 
             video_name = all_video[video_count].split(".")[0] #.mp4以前の名前を取得する
 
-            #フォルダを作成する
+            #CSVフォルダを作成する
             csv_path = ".//result//csv_result//" + str(video_name) + "_" + str(interval) + "_" + str(step)
             os.mkdir(csv_path)
+            #グラフフォルダを作成する
             figure_path = ".//result//figure_result//" + str(video_name) + "_" + str(interval) + "_" + str(step)
             os.mkdir(figure_path)
 
