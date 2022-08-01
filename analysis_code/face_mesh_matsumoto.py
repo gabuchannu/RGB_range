@@ -35,7 +35,7 @@ class Facemesh:
 
         results = self.detect(image)
 
-        if results is None:
+        if results is None: #顔検出できてなかったら
             return None
 
         face_points = results['face']
@@ -89,7 +89,7 @@ class Facemesh:
         }
 
     def detect(self, image):
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+#        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         results = self.face_mesh.process(image)
         image_width, image_height = image.shape[1], image.shape[0]
 

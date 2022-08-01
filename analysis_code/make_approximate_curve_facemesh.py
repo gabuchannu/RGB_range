@@ -5,22 +5,25 @@ from matplotlib import pyplot
 import cv2
 import face_mesh_matsumoto
 from sklearn import linear_model
+import os
 
 #----------------------
 #フレーム毎に処理を行う関数
 #----------------------
-def frame_process(img, frame_count, interval, step):
+def frame_process(img, frame_count, interval, step, video_name):
     
     facemesh = face_mesh_matsumoto.Facemesh(0.7, 0.5) #facemeshを呼びだす
     results = facemesh.run(img) #入ってきたフレーム画像に対してfacemeshを行う
 
 
     if results == None: #顔検出ができていなかったら
+        print("Can't take face.")
+        #cv2.imwrite(".//result//figure_result//hino_check_face//" + str(frame_count) + ".png", img)
         return
 
     else: #顔検出出来ていたら
         #書き換えポイント
-        file_name = "..//result//csv_result//hino//frame" + str(frame_count) + ".csv"
+        file_name = ".//result//csv_result//" + str(video_name) + "_" + str(interval) + "_" + str(step) + "//frame" + str(frame_count) + ".csv"
         f = open(file_name, "a") #追記モードでファイルを開く
         f.write("R Value" + "," + "G Value" + "," + "B Value" + "," + "R+G+B Value" + "," + "R-B Value" + "\n") #ヘッダー作成
         
@@ -44,15 +47,15 @@ def frame_process(img, frame_count, interval, step):
 
         f.close()
 
-    make_cut_data(frame_count, interval, step) #現在見ているフレーム数を持って値を切り取りする関数に渡す
+        make_cut_data(frame_count, interval, step, video_name) #現在見ているフレーム数を持って値を切り取りする関数に渡す
 
 
-def make_cut_data(frame_count, interval, step):
+def make_cut_data(frame_count, interval, step, video_name):
 
     #先の関数で作った1フレームの各成分値のデータ
-    file_name = "..//result//csv_result//hino//frame" + str(frame_count) + ".csv"
+    file_name = ".//result//csv_result//" + str(video_name) + "_" + str(interval) + "_" + str(step) + "//frame" + str(frame_count) + ".csv"
     #if ((765 - interval) % step) == 0:
-    file_number = ((765 - interval) // (step - 1)) + 2
+    file_number = ((765 - interval) // (step - 1)) + 2 #何個のデータができるか計算する
     #else:
     #    file_number = ((765 - interval) // (step - 1)) + 1
     
@@ -85,22 +88,22 @@ def make_cut_data(frame_count, interval, step):
 
     for i in range(file_number): #CSVに書き込みしていく
         new_df =  pd.DataFrame(data[i], columns=["R Value", "G Value", "B Value", "R+G+B Value", "R-B Value"]) #新しいファイルを作成する
-        new_df_name = "..//result//csv_result//hino//frame" + str(frame_count) + "_" + str(count) + str(count + interval - 1) + ".csv" #新しいCSVを作成する
+        new_df_name = ".//result//csv_result//" + str(video_name) + "_" + str(interval) + "_" + str(step) + "//frame" + str(frame_count) + "_" + str(count) + str(count + interval - 1) + ".csv" #新しいCSVを作成する
         new_df.to_csv(new_df_name) #CSVに切ったデータを書き込む
         count = count + step - 1
     
-    make_graph(frame_count, total_data_number, interval, step, file_number)
+    make_graph(frame_count, total_data_number, interval, step, file_number, video_name)
 
 
 
 #-------------------
 #グラフを描く関数
 #-------------------
-def make_graph(frame_count, total_data_number, interval, step, file_number):
+def make_graph(frame_count, total_data_number, interval, step, file_number, video_name):
 
     count = 0
     for i in range(file_number):
-        look_df_name = "..//result//csv_result//hino//frame" + str(frame_count) + "_" + str(count) + str(count + interval - 1) + ".csv" #開くファイルの名前を指定
+        look_df_name = ".//result//csv_result//" + str(video_name) + "_" + str(interval) + "_" + str(step) + "//frame" + str(frame_count) + "_" + str(count) + str(count + interval - 1) + ".csv" #開くファイルの名前を指定
         #look_df = pd.read_csv(look_df_name, encoding="shift_jis")
         look_df = pd.read_csv(look_df_name, encoding="utf-8") #CSVをDFとして開く
 
@@ -108,7 +111,7 @@ def make_graph(frame_count, total_data_number, interval, step, file_number):
 
             fig = pyplot.figure()
             ax = fig.add_subplot(1, 1, 1)
-            fig_name = "..//result//figure_result//hino//frame" + str(frame_count) + "_" + str(count) + str(count + interval - 1) + ".png" #ファイルの名前
+            fig_name = ".//result//figure_result//" + str(video_name) + "_" + str(interval) + "_" + str(step) + "//frame" + str(frame_count) + "_" + str(count) + str(count + interval - 1) + ".png" #ファイルの名前
 
             pyplot.xlim(0, 765) #R+G+Bの最大値まで
             pyplot.ylim(0, 255) #R-Bの最大値まで
@@ -166,24 +169,43 @@ if __name__=="__main__":
     step = int(input("ずらしていく幅を数値入力してください："))
 
     count = 1 #全フレーム(1秒に30枚)に対してランドマークはしないのでカウントフラグを使う
-    frame_count = 1 #CSVファイルの時間を書き込むためのカウント
 
-    #ビデオを読み込みする
-    #書き換えポイント1
-    cap = cv2.VideoCapture("..//data_movie//hino_yoko.mp4")
+    video_count = 0 #全ての動画に対して処理を行うためのカウント
 
-    while True: #動画が終わるまで続ける
-        ret, img = cap.read()
+    while True:
+        video_name_path = ".//all_movie_path.txt" #ビデオを読み込みする
+        with open(video_name_path) as f:
+            all_video = f.read().splitlines() #リストにする
 
-        if ret == False: #もしretがFalseだったら
-            break #動画の画像は1つ前でなくなっているのでループから抜ける
+            frame_count = 1 #CSVファイルの時間を書き込むためのカウント
 
-        if count == 30: #1秒経過していたら
-            count = 1 #カウンターを初期化
-            frame_process(img, frame_count, interval, step) #取り出したimgに対してランドマーク
-            frame_count = frame_count + 1 #1増やす
+            try: #例外処理
+                cap = cv2.VideoCapture(".//data_movie//" + str(all_video[video_count])) #動画を読み込む
+            except IndexError: #読み込む動画の配列がなくなったら
+                break #抜ける
 
-        else: #countが30未満だったら
-            count = count + 1 #countを増やす
+            video_name = all_video[video_count].split(".")[0] #.mp4以前の名前を取得する
 
-    cap.release()
+            #CSVフォルダを作成する
+            csv_path = ".//result//csv_result//" + str(video_name) + "_" + str(interval) + "_" + str(step)
+            os.mkdir(csv_path)
+            #グラフフォルダを作成する
+            figure_path = ".//result//figure_result//" + str(video_name) + "_" + str(interval) + "_" + str(step)
+            os.mkdir(figure_path)
+
+            while True: #動画が終わるまで続ける
+                ret, img = cap.read()
+
+                if ret == False: #もしretがFalseだったら
+                    break #動画の画像は1つ前でなくなっているのでループから抜ける
+
+                if count == 30: #1秒経過していたら
+                    count = 1 #カウンターを初期化
+                    frame_process(img, frame_count, interval, step, video_name) #取り出したimgに対してランドマーク
+                    frame_count = frame_count + 1 #1増やす
+
+                else: #countが30未満だったら
+                    count = count + 1 #countを増やす
+
+            cap.release() #動画を終了する
+            video_count += 1 #次の動画を見るためにカウンターを増やす
