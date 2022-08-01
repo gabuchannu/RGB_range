@@ -4,3 +4,4 @@ data_movie/*
 
 __pycache__/
 .DS_Store
+analysis_result.xlsx
